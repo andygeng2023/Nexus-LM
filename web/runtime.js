@@ -72,24 +72,24 @@ export class NexusRuntime {
     return y;
   }
   ssm(x,T,p) {
-    const d=this.cfg.width, proj=this.linear(x,T,d,d*3,p+".selective_ssm.parameters"), A=this.param(p+".selective_ssm.A_log"), D=this.param(p+".selective_ssm.D"), state=new Float32Array(d), z=new Float32Array(T*d);
+    const d=this.cfg.width, proj=this.linear(x,T,d,d*3,p+"selective_ssm.parameters"), A=this.param(p+"selective_ssm.A_log"), D=this.param(p+"selective_ssm.D"), state=new Float32Array(d), z=new Float32Array(T*d);
     for(let t=0;t<T;t++) for(let j=0;j<d;j++){
       const raw=proj[t*3*d+j], delta=(raw>20?raw:Math.log1p(Math.exp(Math.max(-30,raw))))+1e-4;
       const a=Math.exp(-delta*Math.exp(A[j])), gate=Math.tanh(proj[t*3*d+d+j]);
       state[j]=a*state[j]+(1-a)*gate*x[t*d+j];
       z[t*d+j]=Math.tanh(proj[t*3*d+2*d+j])*state[j]+D[j]*x[t*d+j];
     }
-    return this.linear(z,T,d,d,p+".selective_ssm.output");
+    return this.linear(z,T,d,d,p+"selective_ssm.output");
   }
   attention(x,T,p) {
-    const c=this.cfg,d=c.width,h=c.heads,hd=d/h,qkv=this.linear(x,T,d,d*3,p+".qkv"),out=new Float32Array(T*d),scale=1/Math.sqrt(hd);
+    const c=this.cfg,d=c.width,h=c.heads,hd=d/h,qkv=this.linear(x,T,d,d*3,p+"qkv"),out=new Float32Array(T*d),scale=1/Math.sqrt(hd);
     for(let head=0;head<h;head++) for(let t=0;t<T;t++){
       const scores=new Float32Array(t+1);let max=-Infinity;
       for(let s=0;s<=t;s++){let dot=0;for(let j=0;j<hd;j++)dot+=qkv[t*3*d+head*hd+j]*qkv[s*3*d+d+head*hd+j];scores[s]=dot*scale;if(scores[s]>max)max=scores[s];}
       let denom=0;for(let s=0;s<=t;s++){scores[s]=Math.exp(scores[s]-max);denom+=scores[s];}
       for(let j=0;j<hd;j++){let value=0;for(let s=0;s<=t;s++)value+=(scores[s]/denom)*qkv[s*3*d+2*d+head*hd+j];out[t*d+head*hd+j]=value;}
     }
-    return this.linear(out,T,d,d,p+".attention_out");
+    return this.linear(out,T,d,d,p+"attention_out");
   }
   swiglu(x,T,d,p) {
     const up=this.linear(x,T,d,d*4,p+".up"),gate=this.linear(x,T,d,d*4,p+".gate"),hidden=new Float32Array(up.length);
