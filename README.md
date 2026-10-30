@@ -1,75 +1,90 @@
 # NEXUS-LM
 
-An experimental, local-first language-model research framework written in C++20. NEXUS starts from random initialisation and explores a hybrid of causal state processing, causal attention, and sparse expert routing.
+NEXUS-LM is a local-first C++20 language-model research framework. It trains from random initialisation and experiments with a selective recurrent state-space path, alternating causal attention, and sparse top-k expert routing.
 
-> **Status: bootstrap / research prototype.** This is not a trained assistant and does not include pretrained weights. The initial model is intentionally small so that architecture and training correctness can be tested before scaling.
+> **Status: research prototype.** The repository contains a trainable implementation and tests, not pretrained weights or a ready-made assistant. The architecture is experimental and has not been shown to outperform a Transformer.
 
-## Design goals
+## Features
 
-- Native C++20 core and command-line interface.
-- Random initialisation; no pretrained model weights.
-- CPU fallback and optional CUDA through the installed LibTorch build.
-- Local text-file training and local generation.
-- Reproducible seeds, checkpoints, and tests.
-- Experimental hybrid blocks with top-k expert dispatch.
+- Native C++20 executable and LibTorch tensor/autograd backend.
+- Reversible byte-level BPE tokenizer trained on a local text corpus.
+- Input-selective diagonal recurrent state-space layer with input-dependent step size and B/C selectors.
+- Causal multi-head attention in alternating hybrid blocks.
+- Sparse top-k SwiGLU expert routing.
+- Dense causal Transformer/SwiGLU reference implementation.
+- Training loop with AdamW, gradient clipping, held-out validation loss and checkpoint saving.
+- Tests for tokenizer round-tripping, SSM causality, model causality, gradients and baseline output shape.
+- Microbenchmark for training-step time, throughput and parameter counts.
 
 ## Requirements
 
 - CMake 3.20+
-- A C++20 compiler (Clang, GCC, or MSVC)
-- LibTorch matching your compiler and platform
+- C++20 compiler (Clang, GCC or MSVC)
+- LibTorch distribution matching your platform and compiler
 
-Download the LibTorch C++ distribution from the official PyTorch installation selector: https://pytorch.org/get-started/locally/ . Set `CMAKE_PREFIX_PATH` to the extracted LibTorch directory.
+Download LibTorch from the official PyTorch selector: https://pytorch.org/get-started/locally/ .
 
 ## Build
 
-```bash
-cmake -S . -B build -DCMAKE_PREFIX_PATH=/path/to/libtorch -DCMAKE_BUILD_TYPE=Release
-cmake --build build --config Release -j
+\`\`\`bash
+cmake -S . -B build \\
+  -DCMAKE_PREFIX_PATH=/path/to/libtorch \\
+  -DCMAKE_BUILD_TYPE=Release
+cmake --build build --config Release --parallel
 ctest --test-dir build --output-on-failure
-```
+\`\`\`
+
+## Prepare a tokenizer
+
+Train the tokenizer on the same text corpus you intend to use for language-model training:
+
+\`\`\`bash
+./build/nexus tokenizer-train data/corpus.txt data/tokenizer.bpe 2048
+\`\`\`
+
+The last argument is the target vocabulary size. The tokenizer learns merge rules only from the leading 90% of the supplied text; the final 10% is kept unseen by tokenizer fitting. The actual vocabulary may be smaller if no pair occurs at least twice. The included implementation is a simple byte-level BPE baseline; train it on a substantial representative corpus for real experiments.
 
 ## Train from random initialisation
 
-The bootstrap tokenizer maps each UTF-8 byte to one token. Provide a plain-text corpus larger than the configured sequence length.
+\`\`\`bash
+./build/nexus train data/corpus.txt checkpoints/nexus.pt data/tokenizer.bpe 10000 128 8
+\`\`\`
 
-```bash
-./build/nexus train examples/tiny_corpus.txt nexus-tiny.pt 100
-```
+Arguments after the tokenizer are steps, sequence length and batch size. The model uses width 128, four hybrid blocks, four experts and top-2 routing by default. The initialization seed defaults to 42 and is applied before model construction. The code automatically selects CUDA when the installed LibTorch build supports it; otherwise it uses CPU.
 
-The executable uses a deliberately small default configuration in `src/main.cpp`. The generated checkpoint contains weights learned from random initialisation on the supplied text; the tiny example corpus is only sufficient for pipeline smoke testing and is not sufficient to create a useful language model.
+Training reserves the last 10% of tokenised text for held-out validation when there are enough tokens. Checkpoints contain model weights. Optimiser state/resume training and full checkpoint metadata are not implemented yet; use the same architecture settings and tokenizer file when loading a checkpoint.
 
-## Generate
+## Generate locally
 
-```bash
-./build/nexus generate nexus-tiny.pt "Language models" 80
-```
+\`\`\`bash
+./build/nexus generate checkpoints/nexus.pt data/tokenizer.bpe "Your prompt" 100
+\`\`\`
 
-Generation currently uses the same compiled-in model configuration as training. Keep those settings identical when loading a checkpoint.
+The tokenizer file must be the exact same one used for training.
 
-## Important limitations
+## Benchmark against a dense Transformer
 
-- The byte tokenizer is a bootstrap implementation; it is inefficient for natural language compared with a trained subword tokenizer.
-- The state path is a causal depthwise convolutional approximation, not a novel proven state-space architecture.
-- The attention implementation is dense and quadratic in sequence length.
-- The model is not instruction-tuned and should not be expected to behave like a modern assistant.
-- CUDA support depends on the installed LibTorch build. CPU is the fallback. Apple Metal is not yet implemented or verified.
-- This repository does not ship training data. Use datasets you have the rights to use and follow their licences and privacy requirements.
+\`\`\`bash
+./build/nexus_bench 128 20
+\`\`\`
 
-## Research protocol
+The benchmark reports stored parameters, estimated active parameters per token, training-step time, throughput and final random-batch loss. It uses a widened dense Transformer reference to approximately match NEXUS's active parameter budget. It does not measure held-out language quality and does not imply universal speed or quality gains. Results should be recorded separately on each target hardware backend.
 
-When comparing architectural variants, hold the training corpus, tokenizer, parameter budget, training-token budget, optimiser, and evaluation set constant. Record throughput, peak memory, wall-clock time, validation loss, and task metrics. Keep a dense Transformer baseline so that claimed efficiency improvements can be tested.
+See [initial local benchmark results](docs/benchmark-results.md).
 
-## Roadmap
+## Current limitations
 
-1. Establish compile/test correctness and baseline measurements.
-2. Add a learned BPE tokenizer and robust corpus pipeline.
-3. Add configuration-file loading and checkpoint metadata.
-4. Implement and benchmark a genuine selective state-space layer.
-5. Investigate sparse/block attention and adaptive computation.
-6. Add a validated Metal backend and portable quantised inference.
-7. Add instruction tuning and rigorous evaluation only after language pretraining is adequate.
+- The selective SSM is a simple diagonal recurrent layer. The time loop is not fused or parallelised and may be slower than attention for short sequences.
+- Attention is dense and quadratic in context length.
+- Expert dispatch has indexing overhead and requires profiling.
+- The BPE trainer rescans the corpus for every merge and has no special tokens or byte-fallback metadata beyond its fixed byte alphabet.
+- Apple Metal is not implemented or verified. CUDA depends on the installed LibTorch build.
+- No pretrained weights or training data are supplied. The included example corpus is for software smoke tests only.
+
+## Research discipline
+
+Compare variants with the same tokenizer, data split, token budget, evaluation suite, optimiser and model-quality target. Record the hardware, compiler, LibTorch version, wall-clock training time, peak memory, tokens/second, validation loss and held-out task results. Do not infer intelligence from training loss or synthetic benchmark throughput alone.
 
 ## Licence
 
-MIT. Dataset and model-training data licences remain the responsibility of the dataset provider and user.
+MIT. Check the licences, provenance, privacy constraints and permitted uses of any training data before use.
