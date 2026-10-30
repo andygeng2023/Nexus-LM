@@ -124,6 +124,7 @@ export class NexusRuntime {
       const max=scores[top[0]],probs=top.map(i=>Math.exp((scores[i]-max)/0.8)),total=probs.reduce((a,b)=>a+b,0);
       let r=Math.random()*total,chosen=top[top.length-1];for(let i=0;i<top.length;i++){r-=probs[i];if(r<=0){chosen=top[i];break;}}
       generated.push(chosen);onToken(this.decode([chosen]),step+1);
+      await new Promise(resolve=>setTimeout(resolve,0));
     }
     return this.decode(generated);
   }
