@@ -114,8 +114,8 @@ export class NexusRuntime {
     const emb=this.param("embedding.weight"),x=new Float32Array(T*d);
     for(let t=0;t<T;t++){const id=ids[t];if(id<0||id>=c.vocab_size)throw new Error("Token id outside vocabulary");x.set(emb.subarray(id*d,(id+1)*d),t*d);}
     for(let i=0;i<c.layers;i++)this.block(x,T,i);
-    const n=this.norm(x,T,d,"final_norm"),W=this.param("lm_head.weight"),last=n.subarray((T-1)*d,T*d),out=new Float32Array(c.vocab_size);
-    for(let v=0;v<c.vocab_size;v++){let s=0;for(let j=0;j<d;j++)s+=W[v*d+j]*last[j];out[v]=s;}return out;
+    const n=this.norm(x,T,d,"final_norm"),W=this.param("lm_head.weight"),B=this.param("lm_head.bias"),last=n.subarray((T-1)*d,T*d),out=new Float32Array(c.vocab_size);
+    for(let v=0;v<c.vocab_size;v++){let s=B[v];for(let j=0;j<d;j++)s+=W[v*d+j]*last[j];out[v]=s;}return out;
   }
   async generate(prompt, count=64, onToken=()=>{}) {
     const ids=this.encode(prompt);if(!ids.length)throw new Error("Enter a prompt first");
