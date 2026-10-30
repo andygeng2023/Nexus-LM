@@ -115,7 +115,7 @@ export class NexusRuntime {
     const n=this.norm(x,T,d,"final_norm"),W=this.param("lm_head.weight"),last=n.subarray((T-1)*d,T*d),out=new Float32Array(c.vocab_size);
     for(let v=0;v<c.vocab_size;v++){let s=0;for(let j=0;j<d;j++)s+=W[v*d+j]*last[j];out[v]=s;}return out;
   }
-  generate(prompt, count=64, onToken=()=>{}) {
+  async generate(prompt, count=64, onToken=()=>{}) {
     const ids=this.encode(prompt);if(!ids.length)throw new Error("Enter a prompt first");
     const generated=[...ids];
     for(let step=0;step<count;step++){
