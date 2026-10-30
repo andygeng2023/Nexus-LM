@@ -1,0 +1,16 @@
+model:
+  vocab_size: 256
+  width: 128
+  layers: 4
+  heads: 4
+  context: 256
+  experts: 4
+  top_k: 2
+training:
+  steps: 1000
+  batch_size: 8
+  sequence_length: 128
+  learning_rate: 0.0003
+  log_every: 25
+  save_every: 250
+  seed: 42
