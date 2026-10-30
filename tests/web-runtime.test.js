@@ -29,7 +29,6 @@ test("loads a model, runs causal forward inference and generates tokens",async()
   assert.deepEqual(rt.encode("hi"),[256]);
   assert.equal(rt.decode([256]),"hi");
   assert.equal(rt.decode(rt.encode("hello")),"hello");
-  assert.equal(rt.decode(rt.encode("hello")),"hello");
   const logits=rt.logits([104,105]);
   assert.equal(logits.length,257);
   const generated=await rt.generate("hi",2);
