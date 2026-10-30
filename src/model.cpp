@@ -25,29 +25,36 @@ SelectiveStateSpaceImpl::SelectiveStateSpaceImpl(int64_t width) : width_(width) 
     D_ = register_parameter("D", torch::ones({width}, torch::TensorOptions().dtype(torch::kFloat32)));
 }
 torch::Tensor SelectiveStateSpaceImpl::forward(const torch::Tensor& x) {
-    if (x.dim() != 3 || x.size(2) != width_) throw std::invalid_argument("SSM input must have shape [batch, sequence, width]");
-    const auto batch = x.size(0);
+    if (x.dim() != 3 || x.size(2) != width_)
+        throw std::invalid_argument("SSM input must have shape [batch, sequence, width]");
     const auto steps = x.size(1);
+    if (steps == 0) return x;
+
+    // Each time step is an affine state transition s_t = a_t*s_(t-1) + b_t.
+    // Affine transitions compose associatively, so this prefix scan has O(log T)
+    // tensor stages instead of a serial T-step recurrence.
     auto projected = parameters_(x);
     auto parts = projected.chunk(3, -1);
     auto delta = torch::softplus(parts[0]) + 1.0e-4;
     auto input_gate = torch::tanh(parts[1]);
     auto output_gate = torch::tanh(parts[2]);
-    auto decay_rate = torch::exp(A_log_).view({1, width_});
-    auto state = torch::zeros({batch, width_}, x.options());
-    std::vector<torch::Tensor> outputs;
-    outputs.reserve(static_cast<std::size_t>(steps));
-    for (int64_t t = 0; t < steps; ++t) {
-        auto xt = x.select(1, t);
-        auto dt = delta.select(1, t);
-        auto decay = torch::exp(-dt * decay_rate);
-        auto b = input_gate.select(1, t);
-        auto c = output_gate.select(1, t);
-        state = decay * state + (1.0 - decay) * b * xt;
-        outputs.push_back(state * c + D_ * xt);
+    auto decay_rate = torch::exp(A_log_).view({1, 1, width_});
+    auto a = torch::exp(-delta * decay_rate);
+    auto b = (1.0 - a) * input_gate * x;
+    auto positions = torch::arange(steps, x.options().dtype(torch::kLong)).view({1, steps, 1});
+
+    // Hillis-Steele inclusive scan. This is vectorised tensor code, not a fused
+    // custom CUDA kernel; each stride still launches multiple backend ops.
+    for (int64_t stride = 1; stride < steps; stride <<= 1) {
+        auto previous_a = torch::roll(a, {stride}, {1});
+        auto previous_b = torch::roll(b, {stride}, {1});
+        auto has_previous = positions >= stride;
+        auto combined_a = a * previous_a;
+        auto combined_b = b + a * previous_b;
+        a = torch::where(has_previous, combined_a, a);
+        b = torch::where(has_previous, combined_b, b);
     }
-    if (outputs.empty()) return x;
-    return output_(torch::stack(outputs, 1));
+    return output_(output_gate * b + D_.view({1, 1, width_}) * x);
 }
 
 HybridBlockImpl::HybridBlockImpl(const ModelConfig& cfg, int64_t layer_index)
@@ -83,20 +90,36 @@ torch::Tensor HybridBlockImpl::forward(torch::Tensor x) {
 
     auto normalized = norm_moe_(x);
     auto flat = normalized.reshape({-1, cfg_.width});
+    const auto token_count = flat.size(0);
     const auto k = std::min(cfg_.top_k, cfg_.experts);
     auto routed = torch::topk(router_(flat), k, -1);
-    auto route_weights = torch::softmax(std::get<0>(routed), -1);
-    auto route_ids = std::get<1>(routed);
+    auto route_weights = torch::softmax(std::get<0>(routed), -1).reshape({-1});
+    auto route_ids = std::get<1>(routed).reshape({-1});
+
+    // Sort routes once so each expert is processed from one contiguous range.
+    // This replaces a full nonzero scan of every route for every expert.
+    auto token_indices = torch::arange(token_count, flat.options().dtype(torch::kLong))
+                             .unsqueeze(1).expand({token_count, k}).reshape({-1});
+    auto sorted = torch::sort(route_ids);
+    auto sorted_experts = std::get<0>(sorted);
+    auto order = std::get<1>(sorted);
+    auto grouped_tokens = token_indices.index_select(0, order);
+    auto grouped_weights = route_weights.index_select(0, order);
+    auto counts = torch::bincount(sorted_experts, {}, cfg_.experts).to(torch::kCPU).contiguous();
+    auto count_data = counts.data_ptr<int64_t>();
+
     auto mixed = torch::zeros_like(flat);
+    int64_t begin = 0;
     for (int64_t expert_id = 0; expert_id < cfg_.experts; ++expert_id) {
-        auto locations = torch::nonzero(route_ids == expert_id);
-        if (locations.numel() == 0) continue;
-        auto token_indices = locations.select(1, 0);
-        auto choice_indices = locations.select(1, 1);
-        auto expert_input = flat.index_select(0, token_indices);
+        const auto count = count_data[expert_id];
+        if (count == 0) continue;
+        const auto end = begin + count;
+        auto indices = grouped_tokens.slice(0, begin, end);
+        auto weights = grouped_weights.slice(0, begin, end).unsqueeze(1);
+        auto expert_input = flat.index_select(0, indices);
         auto expert = std::dynamic_pointer_cast<FeedForwardImpl>(experts_[expert_id]);
-        auto weights = route_weights.index({token_indices, choice_indices}).unsqueeze(1);
-        mixed.index_add_(0, token_indices, expert->forward(expert_input) * weights);
+        mixed.index_add_(0, indices, expert->forward(expert_input) * weights);
+        begin = end;
     }
     return x + mixed.view_as(x);
 }

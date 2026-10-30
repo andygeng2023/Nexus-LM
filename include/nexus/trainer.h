@@ -19,7 +19,8 @@ public:
     Trainer(NexusModel model, TrainConfig config, torch::Device device);
     void train_text_file(const std::filesystem::path& corpus,
                          const std::filesystem::path& checkpoint,
-                         const BpeTokenizer& tokenizer);
+                         const BpeTokenizer& tokenizer,
+                         const std::filesystem::path& validation_corpus = {});
 private:
     NexusModel model_;
     TrainConfig config_;

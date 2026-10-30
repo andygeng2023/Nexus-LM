@@ -39,7 +39,7 @@ Trainer::Trainer(NexusModel model, TrainConfig config, torch::Device device)
 
 void Trainer::train_text_file(const std::filesystem::path& corpus,
                               const std::filesystem::path& checkpoint,
-                              const BpeTokenizer& tokenizer) {
+                              const BpeTokenizer& tokenizer, const std::filesystem::path& validation_corpus) {
     std::ifstream file(corpus, std::ios::binary);
     if (!file) throw std::runtime_error("cannot open corpus: " + corpus.string());
     const std::string raw((std::istreambuf_iterator<char>(file)), {});
@@ -49,20 +49,39 @@ void Trainer::train_text_file(const std::filesystem::path& corpus,
     if (ids.size() <= static_cast<std::size_t>(config_.sequence_length + 1))
         throw std::runtime_error("tokenized corpus is too short for the sequence length; lower it or provide more text");
 
-    const std::size_t split = std::max<std::size_t>(1, ids.size() * 9 / 10);
-    if (split <= static_cast<std::size_t>(config_.sequence_length + 1))
-        throw std::runtime_error("training split is too short; use a longer corpus or shorter sequence length");
-    std::vector<int64_t> train_ids(ids.begin(), ids.begin() + static_cast<std::ptrdiff_t>(split));
-    std::vector<int64_t> valid_ids(ids.begin() + static_cast<std::ptrdiff_t>(split), ids.end());
-    auto train_data = torch::tensor(train_ids, torch::kInt64).to(device_);
-    auto valid_data = torch::tensor(valid_ids, torch::kInt64).to(device_);
+    std::vector<int32_t> train_ids;
+    std::vector<int32_t> valid_ids;
+    auto append_ids = [](std::vector<int32_t>& target, const auto& source,
+                         std::size_t begin, std::size_t end) {
+        target.reserve(end - begin);
+        for (std::size_t i = begin; i < end; ++i) target.push_back(static_cast<int32_t>(source[i]));
+    };
+    if (!validation_corpus.empty()) {
+        append_ids(train_ids, ids, 0, ids.size());
+        std::ifstream validation_file(validation_corpus, std::ios::binary);
+        if (!validation_file) throw std::runtime_error("cannot open validation corpus: " + validation_corpus.string());
+        std::string validation_raw((std::istreambuf_iterator<char>(validation_file)), {});
+        const auto validation_tokens = tokenizer.encode(validation_raw);
+        append_ids(valid_ids, validation_tokens, 0, validation_tokens.size());
+    } else {
+        const std::size_t split = std::max<std::size_t>(1, ids.size() * 9 / 10);
+        append_ids(train_ids, ids, 0, split);
+        append_ids(valid_ids, ids, split, ids.size());
+    }
+    ids.clear(); ids.shrink_to_fit();
+    if (train_ids.size() <= static_cast<std::size_t>(config_.sequence_length + 1))
+        throw std::runtime_error("training corpus is too short for the sequence length");
+    auto train_data = torch::tensor(train_ids, torch::kInt32);
+    auto valid_data = torch::tensor(valid_ids, torch::kInt32);
+    train_ids.clear(); train_ids.shrink_to_fit();
+    valid_ids.clear(); valid_ids.shrink_to_fit();
 
     torch::manual_seed(static_cast<int64_t>(config_.seed));
     std::mt19937_64 rng(config_.seed);
-    std::uniform_int_distribution<int64_t> start_dist(0, static_cast<int64_t>(train_ids.size()) - config_.sequence_length - 2);
+    std::uniform_int_distribution<int64_t> start_dist(0, train_data.size(0) - config_.sequence_length - 2);
     torch::optim::AdamW optimizer(model_->parameters(), torch::optim::AdamWOptions(config_.learning_rate));
     model_->train();
-    std::cout << "training tokens=" << train_ids.size() << " validation tokens=" << valid_ids.size()
+    std::cout << "training tokens=" << train_data.size(0) << " validation tokens=" << valid_data.size(0)
               << " vocab=" << tokenizer.vocab_size() << " device=" << (device_.is_cuda() ? "CUDA" : "CPU") << '\n';
 
     for (int64_t step = 1; step <= config_.steps; ++step) {
