@@ -3,10 +3,10 @@ import assert from "node:assert/strict";
 import {NexusRuntime} from "../web/runtime.js";
 
 function fixture() {
-  const c={vocab_size:256,width:4,layers:2,heads:2,context:8,experts:2,top_k:1};
+  const c={vocab_size:257,width:4,layers:2,heads:2,context:8,experts:2,top_k:1};
   const tensors=[];
   const add=(name,shape,fill=0)=>{const length=shape.reduce((a,b)=>a*b,1);tensors.push({name,shape,values:new Float32Array(length).fill(fill)});};
-  add("embedding.weight",[256,4]);add("final_norm.weight",[4],1);add("final_norm.bias",[4]);add("lm_head.weight",[256,4]);add("lm_head.bias",[256]);
+  add("embedding.weight",[257,4]);add("final_norm.weight",[4],1);add("final_norm.bias",[4]);add("lm_head.weight",[257,4]);add("lm_head.bias",[257]);
   for(let i=0;i<c.layers;i++){
     const p="blocks."+i+".";
     for(const n of ["norm_ssm","norm_moe"]) {add(p+n+".weight",[4],1);add(p+n+".bias",[4]);}
@@ -21,15 +21,17 @@ function fixture() {
   for(const t of tensors){manifestT.push({name:t.name,shape:t.shape,offset,length:t.values.byteLength});parts.push(new Uint8Array(t.values.buffer));offset+=t.values.byteLength;}
   const bytes=new Uint8Array(offset);let at=0;for(const p of parts){bytes.set(p,at);at+=p.length;}
   const manifest={format:"NEXUS_WEB_V1",config:c,tensors:manifestT};
-  const tokenizer="NEXUS_BPE_V1\n256\n";
+  const tokenizer="NEXUS_BPE_V1\\n257\\n104 105\\n";
   return {manifest,bytes:bytes.buffer,tokenizer};
 }
 test("loads a model, runs causal forward inference and generates tokens",async()=>{
   const f=fixture(),rt=new NexusRuntime(f.manifest,f.bytes,f.tokenizer);
-  assert.equal(rt.encode("hello").length,5);
+  assert.deepEqual(rt.encode("hi"),[256]);
+  assert.equal(rt.decode([256]),"hi");
+  assert.equal(rt.decode(rt.encode("hello")),"hello");
   assert.equal(rt.decode(rt.encode("hello")),"hello");
   const logits=rt.logits([104,105]);
-  assert.equal(logits.length,256);
+  assert.equal(logits.length,257);
   const generated=await rt.generate("hi",2);
   assert.equal(generated.length,4);
 });
