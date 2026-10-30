@@ -24,12 +24,12 @@ function fixture() {
   const tokenizer="NEXUS_BPE_V1\n256\n";
   return {manifest,bytes:bytes.buffer,tokenizer};
 }
-test("loads a model, runs causal forward inference and generates tokens",()=>{
+test("loads a model, runs causal forward inference and generates tokens",async()=>{
   const f=fixture(),rt=new NexusRuntime(f.manifest,f.bytes,f.tokenizer);
   assert.equal(rt.encode("hello").length,5);
   assert.equal(rt.decode(rt.encode("hello")),"hello");
   const logits=rt.logits([104,105]);
   assert.equal(logits.length,256);
-  const generated=rt.generate("hi",2);
+  const generated=await rt.generate("hi",2);
   assert.equal(generated.length,4);
 });
