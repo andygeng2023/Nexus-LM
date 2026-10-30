@@ -7,8 +7,10 @@ export class NexusRuntime {
     const bytes = weightBuffer instanceof ArrayBuffer ? weightBuffer : weightBuffer.buffer;
     const base = weightBuffer instanceof ArrayBuffer ? 0 : weightBuffer.byteOffset;
     for (const t of manifest.tensors) {
-      if (t.offset % 4 || t.length % 4) throw new Error("Misaligned tensor in model file: " + t.name);
-      this.w.set(t.name, new Float32Array(bytes, base + t.offset, t.length));
+      const elementCount = t.shape.reduce((a,b)=>a*b,1);
+      if (t.offset % 4 || t.length % 4 || t.length !== elementCount * 4 || base + t.offset + t.length > bytes.byteLength)
+        throw new Error("Invalid tensor byte range or shape in model file: " + t.name);
+      this.w.set(t.name, new Float32Array(bytes, base + t.offset, elementCount));
     }
     this.tokens = [];
     this.merges = [];
