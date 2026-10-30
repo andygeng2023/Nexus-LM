@@ -6,7 +6,7 @@ function fixture() {
   const c={vocab_size:256,width:4,layers:2,heads:2,context:8,experts:2,top_k:1};
   const tensors=[];
   const add=(name,shape,fill=0)=>{const length=shape.reduce((a,b)=>a*b,1);tensors.push({name,shape,values:new Float32Array(length).fill(fill)});};
-  add("embedding.weight",[256,4]);add("final_norm.weight",[4],1);add("final_norm.bias",[4]);add("lm_head.weight",[256,4]);
+  add("embedding.weight",[256,4]);add("final_norm.weight",[4],1);add("final_norm.bias",[4]);add("lm_head.weight",[256,4]);add("lm_head.bias",[256]);
   for(let i=0;i<c.layers;i++){
     const p="blocks."+i+".";
     for(const n of ["norm_ssm","norm_moe"]) {add(p+n+".weight",[4],1);add(p+n+".bias",[4]);}
