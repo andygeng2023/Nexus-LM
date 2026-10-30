@@ -30,7 +30,7 @@ torch::Tensor batch_at(const torch::Tensor& data, const std::vector<int64_t>& st
     std::vector<torch::Tensor> rows;
     rows.reserve(starts.size());
     for (const auto start : starts) rows.push_back(data.slice(0, start, start + length));
-    return torch::stack(rows).to(device);
+    return torch::stack(rows).to(device).to(torch::kLong);
 }
 
 double validation_loss(NexusModel& model, const torch::Tensor& data, int64_t length,
@@ -44,8 +44,8 @@ double validation_loss(NexusModel& model, const torch::Tensor& data, int64_t len
     double total = 0.0;
     for (int64_t i = 0; i < batches; ++i) {
         const auto start = dist(rng);
-        auto x = data.slice(0, start, start + length).unsqueeze(0).to(device);
-        auto y = data.slice(0, start + 1, start + length + 1).unsqueeze(0).to(device);
+        auto x = data.slice(0, start, start + length).unsqueeze(0).to(device).to(torch::kLong);
+        auto y = data.slice(0, start + 1, start + length + 1).unsqueeze(0).to(device).to(torch::kLong);
         auto logits = model->forward(x);
         total += torch::nn::functional::cross_entropy(
             logits.reshape({-1, model->config().vocab_size}), y.reshape({-1})).item<double>();
