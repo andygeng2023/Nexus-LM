@@ -1,41 +1,33 @@
-# NEXUS hybrid architecture v0.2
+# NEXUS-LM architecture
 
-## Block layout
+## Current hybrid block
 
-Each NEXUS block applies residual sublayers in this order:
+Each block applies the following residual components:
 
-1. **Selective diagonal state-space layer.** A per-token projection predicts a positive step size (delta) and input/output selectors (B, C). Each channel maintains a recurrent state:
+1. **Selective diagonal state-space path.** A token-dependent projection predicts a positive discretisation step and input/output selectors. Each channel has an affine transition s_t = a_t * s_(t-1) + b_t. Associative transition composition permits an inclusive parallel prefix scan with logarithmic tensor stages.
+2. **Causal multi-head attention** in alternating blocks. This remains dense and quadratic in sequence length.
+3. **Sparse top-k SwiGLU experts.** Tokens select a small subset of experts; selected routes are sorted and grouped so expert dispatch avoids rescanning all routes separately for every expert.
 
-   decay_t = exp(-exp(A_log) * softplus(delta_t))
+The embedding and language-model output weights are tied.
 
-   state_t = decay_t * state_(t-1) + (1 - decay_t) * tanh(B_t) * x_t
+## What the optimisation does and does not do
 
-   y_t = tanh(C_t) * state_t + D * x_t
+The selective scan is vectorised as a Hillis-Steele parallel prefix scan using LibTorch tensor operators. It is not yet a hand-written fused CUDA/Metal kernel: each scan level creates backend operations and intermediate tensors. It reduces serial dependency depth from O(T) to O(log T), but can still be slower for short contexts because of launch and memory traffic.
 
-   The recurrence is strictly causal. It has linear sequence work but is currently implemented as a sequential C++ loop over tensor operations; it is a research implementation, not a fused high-performance scan kernel.
-2. **Causal multi-head attention** in alternating blocks. The current implementation is dense and has quadratic sequence complexity.
-3. **Top-k routed SwiGLU experts.** The router chooses top_k experts per token and combines their outputs with a softmax over selected routes.
+Expert routes are top-k selected, sorted by expert ID and processed as contiguous expert ranges. There is still per-expert dispatch and an index-add operation. A fused grouped GEMM/kernel would be a later optimisation.
 
-Token embeddings and output projection weights are tied.
+BPE training uses linked token positions and a lazy heap of pair counts; encoding uses a priority queue of merge ranks. Both avoid repeating full-sequence scans for every merge. It remains a simple byte-level BPE implementation, not a production tokenizer.
 
-## Reference baseline
+## Baseline and measurements
 
-TransformerBaseline is a dense causal Transformer with SwiGLU layers. nexus_bench compares training-step latency and tokens/second on the same generated batch and reports stored parameter counts. The baseline uses a widened feed-forward layer (default multiplier 9) to approximately match the hybrid model's per-token active parameter budget. This is only an approximation: NEXUS stores all experts, while only top-k experts are active for an individual token. The benchmark prints both stored and estimated active parameters to make that distinction visible.
+nexus_bench compares a hybrid model with a dense causal Transformer using a widened SwiGLU reference. It prints stored parameter count and an estimate of active parameter count per token. MoE's total stored capacity differs from a dense baseline with a similar active count.
 
-## Byte-level BPE
+Benchmark data is synthetic and measures a training step. It does not measure language-model quality. Compare with identical corpus, tokens seen, parameter budget, sequence length, hardware, optimiser, seed protocol and held-out evaluation before drawing conclusions.
 
-The tokenizer begins with all 256 byte values, then repeatedly merges the most frequent adjacent pair over the supplied training corpus. Merge order is persisted in a compact text file. Encoding applies those merges in rank order. Decoding concatenates token byte strings, so arbitrary UTF-8 input is preserved byte-for-byte. There are no special tokens yet, and merge training is a simple corpus-wide algorithm with repeated scans; it is intended as a functional initial tokenizer rather than a production-scale tokenizer trainer.
+## Research limitations
 
-## Validation and reproducibility
-
-The CLI fits BPE merges on the leading 90% of the corpus, then the trainer tokenizes the full file and reserves the final 10% of token IDs for held-out loss when the validation segment is long enough. This byte-boundary/token-boundary split is approximate; for rigorous experiments, create explicit train/validation files and fit the tokenizer only on the training file. The random seed is applied before model construction.
-
-## Known research and engineering limits
-
-- The SSM is a selective diagonal recurrence, not a full reproduction of Mamba or a claim of a new state-of-the-art architecture.
-- The SSM recurrence is not yet fused/parallelised; sequential dispatch can be slower than dense attention at short contexts.
-- Attention remains quadratic and is used in every second hybrid block.
-- Top-k expert dispatch currently uses tensor indexing and a per-expert loop; dispatch overhead needs profiling and optimisation.
-- Benchmark results are hardware- and build-dependent. A random-batch microbenchmark does not measure language quality.
-- The benchmark's widened Transformer baseline approximates active parameter count, not total stored capacity.
-- No trained checkpoint is committed. Training from scratch requires a large, diverse, legally usable corpus and substantially more compute than the included smoke-test data.
+- The diagonal SSM is an experimental selective recurrence, not a complete Mamba implementation.
+- Causal attention is still quadratic.
+- MoE dispatch is grouped but not fused.
+- No pretrained checkpoint is distributed.
+- WikiText-103 is a language-modelling benchmark corpus rather than an instruction-following dataset.

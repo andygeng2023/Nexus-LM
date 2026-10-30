@@ -1,16 +1,14 @@
-# Initial local smoke benchmark
+# Local CPU microbenchmark
 
-These figures are an initial functional smoke test, not a reliable performance claim.
+Environment: CPU-only PyTorch/LibTorch 2.10.0, GCC 14.2.0. Batch 2, sequence length 64, two warm-up steps and 20 measured train steps. NEXUS width 128, four hybrid blocks, four experts, top-2 routing. The Transformer reference uses a widened SwiGLU hidden multiplier of nine to approximate NEXUS's active per-token parameter budget.
 
-Environment: CPU-only LibTorch 2.10.0, GCC 14.2.0, CMake 3.31.6. Batch size 2, two warm-up train steps. Width 128, four blocks. NEXUS uses 4 experts with top-2 routing. The dense Transformer uses a SwiGLU hidden multiplier of 9 to approximate the NEXUS active per-token parameter budget.
+| Metric | NEXUS hybrid | Dense Transformer x9 |
+|---|---:|---:|
+| Stored parameters | 3,697,936 | 2,177,280 |
+| Estimated active parameters/token | 2,115,856 | 2,177,280 |
+| Average train-step time | 73.05 ms | 32.70 ms |
+| Training tokens/second | 1,752 | 3,915 |
 
-| Context | Model | Stored parameters | Estimated active parameters/token | Step time | Throughput |
-|---:|---|---:|---:|---:|---:|
-| 16 | NEXUS hybrid | 3,697,936 | 2,115,856 | 76.37 ms | 419 tokens/s |
-| 16 | Dense Transformer | 2,177,280 | 2,177,280 | 12.32 ms | 2,597 tokens/s |
-| 64 | NEXUS hybrid | 3,697,936 | 2,115,856 | 158.17 ms | 809 tokens/s |
-| 64 | Dense Transformer | 2,177,280 | 2,177,280 | 39.29 ms | 3,258 tokens/s |
+NEXUS is still slower on this CPU microbenchmark. The parallel scan and grouped expert dispatch reduce avoidable serial/indexing work, but LibTorch's dense matrix kernels remain highly optimised. The scan is not yet a fused kernel and the hybrid architecture contains both a recurrent path and attention. Further speed work requires profiling, fused scan kernels and grouped expert GEMMs.
 
-The NEXUS reference implementation is slower in this smoke test. The likely engineering causes are the unfused sequential SSM recurrence and the current per-expert tensor-indexing dispatch. Dense matrix operations in LibTorch benefit from better optimised kernels. The SSM therefore establishes a selective, causal baseline, but **does not yet meet the efficiency objective**. The next optimisation work should fuse/parallelise the state scan and replace index-based expert routing with grouped dispatch kernels.
-
-The benchmark uses random synthetic tokens and only a few measured iterations. It does not compare language quality, generalise to other devices or establish a stable ranking. Re-run with many iterations, fixed real corpora, peak-memory recording and held-out evaluation before making performance claims.
+The two models are initialised independently; their final synthetic-batch losses are not a fair quality comparison. These results are a single local run, not a universal hardware claim. Re-run with repeated seeds, real held-out data, longer measurements and memory tracking before relying on them.

@@ -1,11 +1,15 @@
 /build/
 /cmake-build-*/
+/.venv/
+/__pycache__/
+**/__pycache__/
+/data/
+/checkpoints/
 *.pt
 *.safetensors
 *.bin
 *.log
+*.bpe
 .DS_Store
 .vscode/
 .idea/
-
-*.bpe
