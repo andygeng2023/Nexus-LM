@@ -1,0 +1,8 @@
+NEXUS is an experimental local language model research project.
+A language model learns patterns in text by predicting the next token.
+Training begins from random initialisation and updates parameters using gradients.
+A small corpus is useful for testing the training pipeline, but it cannot teach broad knowledge.
+Reliable evaluation requires held-out data, repeatable settings, and documented measurements.
+Efficiency must be measured using memory, throughput, latency, and quality.
+The model uses causal processing so that predictions depend only on previous tokens.
+Research should compare each new component against a simple baseline.
