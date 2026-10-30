@@ -47,7 +47,7 @@ On macOS/Linux, from the repository root:
 python3 scripts/prepare_wikitext103.py
 ```
 
-Then run a moderate first experiment:
+You can train locally as shown below, or use **Actions → Train NEXUS on WikiText-103 → Run workflow** to train on a GitHub-hosted CPU runner. The manual workflow uploads the checkpoint, tokenizer and training/test metrics as a downloadable artifact; it does not commit model files to Git. Start with 2,000 steps.\n\nThen run a moderate first experiment locally:
 
 ```bash
 export CMAKE_PREFIX_PATH="$(python3 -c 'import torch; print(torch.utils.cmake_prefix_path)')"
