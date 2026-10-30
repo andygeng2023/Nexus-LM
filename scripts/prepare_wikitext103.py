@@ -11,7 +11,7 @@ EXPECTED_ROWS = {"train": 1_801_350, "validation": 3_760, "test": 4_358}
 OUTPUTS = {"train": "train.txt", "validation": "validation.txt", "test": "test.txt"}
 
 
-def write_split(split, destination: Path, expected_rows: int) -> None:
+def write_split(split, destination: Path, expected_rows: int, min_bytes: int = 100_000) -> None:
     """Write the text column in dataset order, retaining blank rows."""
     if len(split) != expected_rows:
         raise RuntimeError(
@@ -28,7 +28,7 @@ def write_split(split, destination: Path, expected_rows: int) -> None:
                     raise RuntimeError(f"dataset row in {destination.name} has no text string")
                 output.write(text)
                 output.write("\n")
-        if temporary.stat().st_size < 100_000:
+        if temporary.stat().st_size < min_bytes:
             raise RuntimeError(f"prepared split is unexpectedly small: {destination.name}")
         temporary.replace(destination)
     except Exception:
