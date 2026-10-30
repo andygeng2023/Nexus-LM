@@ -86,12 +86,13 @@ The web/ directory contains an installable, offline-first PWA. It runs inference
 
 ### Cloud train, download, install
 
-1. Run Actions → Train NEXUS on WikiText-103 → Run workflow. The workflow builds nexus_export_web and exports web-model/model.json, web-model/model.bin and web-model/tokenizer.bpe into the downloadable artifact alongside the native checkpoint and metrics.
-2. Download and extract the workflow artifact. Keep those three web-model files together.
-3. Enable GitHub Pages for this repository with Settings → Pages → Build and deployment → GitHub Actions. Merge the PWA branch to main; the Pages workflow publishes the web/ app.
-4. Open the published HTTPS Pages URL in Safari on iPad. Use Share → Add to Home Screen to install it.
-5. Open NEXUS, choose all three model files together, and import them. The app stores them in IndexedDB on that device. Once the app and model have both been cached, inference can run offline.
-6. Enter a prompt and select Generate offline. The prompt and generated text remain in the browser; this PWA has no inference server.
+1. Merge PR #1 after its CI checks pass. This puts the exporter and Pages workflow on the default branch, where GitHub Actions can run them.
+2. Enable GitHub Pages for this repository with Settings → Pages → Build and deployment → GitHub Actions.
+3. Run Actions → Train NEXUS on WikiText-103 → Run workflow. The workflow trains the model and uploads the native checkpoint, browser-exported files and metrics as an artifact.
+4. Download and extract the workflow artifact. Keep web-model/model.json, web-model/model.bin and web-model/tokenizer.bpe together.
+5. Open the published HTTPS Pages URL in Safari on iPad. Use Share → Add to Home Screen to install the PWA.
+6. Open NEXUS, choose all three model files together, and import them. The app stores them in IndexedDB on that device. Once the app and model have both been cached, inference can run offline.
+7. Enter a prompt and select Generate offline. The prompt and generated text remain in the browser; this PWA has no inference server.
 
 To build the browser export locally after a native training run:
 
