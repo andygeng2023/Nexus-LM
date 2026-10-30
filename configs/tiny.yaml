@@ -1,11 +1,13 @@
+# Documentation/defaults reference. The CLI currently uses compiled defaults.
 model:
-  vocab_size: 256
+  vocab_size: 512          # overwritten by the loaded BPE tokenizer
   width: 128
   layers: 4
   heads: 4
   context: 256
   experts: 4
   top_k: 2
+  attention_every: 2
 training:
   steps: 1000
   batch_size: 8
@@ -13,4 +15,5 @@ training:
   learning_rate: 0.0003
   log_every: 25
   save_every: 250
+  validation_batches: 8
   seed: 42
