@@ -1,0 +1,9 @@
+/build/
+/cmake-build-*/
+*.pt
+*.safetensors
+*.bin
+*.log
+.DS_Store
+.vscode/
+.idea/
