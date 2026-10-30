@@ -22,11 +22,15 @@ jobs:
         run: cmake --build build --parallel 2
       - name: Unit tests
         run: ctest --test-dir build --output-on-failure
+      - name: Browser runtime tests
+        run: node --test tests/web-runtime.test.js
       - name: End-to-end tokenizer, train, evaluate and generation smoke test
         run: |
           ./build/nexus tokenizer-train examples/tiny_corpus.txt build/smoke.bpe 280 200000
           ./build/nexus train examples/tiny_corpus.txt build/smoke.pt build/smoke.bpe 1 16 1
           ./build/nexus evaluate build/smoke.pt build/smoke.bpe examples/tiny_corpus.txt 2
           ./build/nexus generate build/smoke.pt build/smoke.bpe "NEXUS" 2
+          ./build/nexus_export_web build/smoke.pt build/smoke.bpe build/web-model
+          node -e "const m=require('./build/web-model/model.json'); if(m.format!=='NEXUS_WEB_V1'||!m.tensors.length) process.exit(1)"
       - name: Benchmark smoke test
         run: ./build/nexus_bench 16 1
