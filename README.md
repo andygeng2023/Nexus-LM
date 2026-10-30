@@ -104,7 +104,7 @@ The native LibTorch .pt checkpoint cannot be loaded directly by Safari. The expo
 ### Browser runtime limits
 
 - The PWA requires HTTPS (GitHub Pages provides this) or localhost for service workers and offline caching.
-- The initial runtime is CPU-only JavaScript. WebGPU acceleration, streaming token output and model quantisation are not implemented yet.
+- The initial runtime is CPU-only JavaScript. WebGPU acceleration and model quantisation are not implemented yet.
 - iPadOS Safari capabilities and available memory depend on the iPad model and OS version. This implementation does not claim WebGPU support or guarantee that every model size will fit.
 - The browser stores model data in IndexedDB. Clearing website data or removing the app's website storage deletes the local model.
 - The PWA is an inference client, not a training environment. Training remains in the cloud workflow.
