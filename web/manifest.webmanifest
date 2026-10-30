@@ -5,5 +5,13 @@
   "display": "standalone",
   "background_color": "#101522",
   "theme_color": "#101522",
-  "description": "Offline local language model inference"
+  "description": "Offline local language model inference",
+  "icons": [
+    {
+      "src": "./icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
 }
