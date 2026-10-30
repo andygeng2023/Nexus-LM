@@ -66,16 +66,16 @@ jobs:
           cmake --build build --parallel 2
       - name: Train tokenizer
         env:
-          VOCAB_SIZE: ${{ inputs.vocab_size }}
-          SAMPLE_BYTES: ${{ inputs.sample_bytes }}
+          VOCAB_SIZE: ${{ inputs.vocab_size || '1024' }}
+          SAMPLE_BYTES: ${{ inputs.sample_bytes || '200000' }}
         run: |
           mkdir -p checkpoints
           ./build/nexus tokenizer-train data/wikitext-103/train.txt checkpoints/wikitext103.bpe "$VOCAB_SIZE" "$SAMPLE_BYTES"
       - name: Train and validate NEXUS
         env:
-          STEPS: ${{ inputs.steps }}
-          SEQUENCE_LENGTH: ${{ inputs.sequence_length }}
-          BATCH_SIZE: ${{ inputs.batch_size }}
+          STEPS: ${{ inputs.steps || '2000' }}
+          SEQUENCE_LENGTH: ${{ inputs.sequence_length || '256' }}
+          BATCH_SIZE: ${{ inputs.batch_size || '4' }}
         run: |
           if ! [[ "$STEPS" =~ ^[0-9]+$ ]] || (( STEPS < 1 || STEPS > 10000 )); then
             echo "STEPS must be between 1 and 10000" >&2
