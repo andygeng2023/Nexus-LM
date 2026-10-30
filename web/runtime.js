@@ -31,7 +31,7 @@ export class NexusRuntime {
     this.validateWeights();
   }
   validateWeights() {
-    const c=this.cfg, required=["embedding.weight","final_norm.weight","final_norm.bias","lm_head.weight"];
+    const c=this.cfg, required=["embedding.weight","final_norm.weight","final_norm.bias","lm_head.weight","lm_head.bias"];
     for(const n of required) if(!this.w.has(n)) throw new Error("Model is missing tensor "+n);
     if(c.width<1||c.layers<1||c.heads<1||c.width%c.heads) throw new Error("Invalid model configuration");
     for(let i=0;i<c.layers;i++) {
@@ -74,7 +74,7 @@ export class NexusRuntime {
   ssm(x,T,p) {
     const d=this.cfg.width, proj=this.linear(x,T,d,d*3,p+".selective_ssm.parameters"), A=this.param(p+".selective_ssm.A_log"), D=this.param(p+".selective_ssm.D"), state=new Float32Array(d), z=new Float32Array(T*d);
     for(let t=0;t<T;t++) for(let j=0;j<d;j++){
-      const delta=Math.log1p(Math.exp(Math.max(-30,proj[t*3*d+j])));
+      const raw=proj[t*3*d+j], delta=(raw>20?raw:Math.log1p(Math.exp(Math.max(-30,raw))))+1e-4;
       const a=Math.exp(-delta*Math.exp(A[j])), gate=Math.tanh(proj[t*3*d+d+j]);
       state[j]=a*state[j]+(1-a)*gate*x[t*d+j];
       z[t*d+j]=Math.tanh(proj[t*3*d+2*d+j])*state[j]+D[j]*x[t*d+j];
