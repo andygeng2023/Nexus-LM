@@ -16,19 +16,19 @@ class PrepareWikiTextTests(unittest.TestCase):
             MODULE.write_split(
                 [{"text": "first article line"}, {"text": ""}, {"text": "third"}],
                 target,
-                expected_rows=3,
+                expected_rows=3, min_bytes=0,
             )
             self.assertEqual(target.read_text(encoding="utf-8"), "first article line\n\nthird\n")
 
     def test_rejects_wrong_split_row_count(self):
         with tempfile.TemporaryDirectory() as directory:
             with self.assertRaisesRegex(RuntimeError, "unexpected"):
-                MODULE.write_split([{"text": "line"}], Path(directory) / "train.txt", 2)
+                MODULE.write_split([{"text": "line"}], Path(directory) / "train.txt", 2, min_bytes=0)
 
     def test_rejects_non_string_text(self):
         with tempfile.TemporaryDirectory() as directory:
             with self.assertRaisesRegex(RuntimeError, "no text string"):
-                MODULE.write_split([{"text": None}], Path(directory) / "train.txt", 1)
+                MODULE.write_split([{"text": None}], Path(directory) / "train.txt", 1, min_bytes=0)
 
 
 if __name__ == "__main__":
