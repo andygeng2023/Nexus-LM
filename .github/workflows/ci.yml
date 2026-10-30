@@ -32,5 +32,6 @@ jobs:
           ./build/nexus generate build/smoke.pt build/smoke.bpe "NEXUS" 2
           ./build/nexus_export_web build/smoke.pt build/smoke.bpe build/web-model
           node -e "const m=require('./build/web-model/model.json'); if(m.format!=='NEXUS_WEB_V1'||!m.tensors.length) process.exit(1)"
+          node --input-type=module -e 'import fs from "node:fs"; import {NexusRuntime} from "./web/runtime.js"; const b=fs.readFileSync("build/web-model/model.bin"); const raw=b.buffer.slice(b.byteOffset,b.byteOffset+b.byteLength); const model=new NexusRuntime(JSON.parse(fs.readFileSync("build/web-model/model.json","utf8")),raw,fs.readFileSync("build/web-model/tokenizer.bpe","utf8")); if(model.logits(model.encode("NEXUS")).length!==model.cfg.vocab_size) process.exit(1)'
       - name: Benchmark smoke test
         run: ./build/nexus_bench 16 1
