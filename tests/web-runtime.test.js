@@ -21,7 +21,7 @@ function fixture() {
   for(const t of tensors){manifestT.push({name:t.name,shape:t.shape,offset,length:t.values.byteLength});parts.push(new Uint8Array(t.values.buffer));offset+=t.values.byteLength;}
   const bytes=new Uint8Array(offset);let at=0;for(const p of parts){bytes.set(p,at);at+=p.length;}
   const manifest={format:"NEXUS_WEB_V1",config:c,tensors:manifestT};
-  const tokenizer="NEXUS_BPE_V1\\n257\\n104 105\\n";
+  const tokenizer="NEXUS_BPE_V1\n257\n104 105\n";
   return {manifest,bytes:bytes.buffer,tokenizer};
 }
 test("loads a model, runs causal forward inference and generates tokens",async()=>{
