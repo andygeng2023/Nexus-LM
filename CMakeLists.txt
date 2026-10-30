@@ -23,6 +23,9 @@ target_compile_options(nexus_core PUBLIC ${TORCH_CXX_FLAGS_LIST})
 add_executable(nexus src/main.cpp)
 target_link_libraries(nexus PRIVATE nexus_core)
 
+add_executable(nexus_export_web src/export_web.cpp)
+target_link_libraries(nexus_export_web PRIVATE nexus_core)
+
 if(NEXUS_BUILD_TESTS)
     enable_testing()
     add_executable(nexus_tests tests/test_core.cpp)

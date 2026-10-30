@@ -47,7 +47,7 @@ On macOS/Linux, from the repository root:
 python3 scripts/prepare_wikitext103.py
 ```
 
-You can train locally as shown below, or use **Actions → Train NEXUS on WikiText-103 → Run workflow** to train on a GitHub-hosted CPU runner. The manual workflow uploads the checkpoint, tokenizer and training/test metrics as a downloadable artifact; it does not commit model files to Git. Start with 2,000 steps.\n\nThen run a moderate first experiment locally:
+You can train locally as shown below, or use **Actions → Train NEXUS on WikiText-103 → Run workflow** to train on a GitHub-hosted CPU runner. The manual workflow uploads the native checkpoint, tokenizer, browser-exported model and training/test metrics as a downloadable artifact; it does not commit model files to Git. Start with 2,000 steps. Then run a moderate first experiment locally:
 
 ```bash
 export CMAKE_PREFIX_PATH="$(python3 -c 'import torch; print(torch.utils.cmake_prefix_path)')"
@@ -80,18 +80,36 @@ After training, run:
 
 On Windows, use the corresponding `nexus.exe` path and PowerShell syntax.
 
-## Website and deployment
+## Offline PWA for iPad and desktop browsers
 
-GitHub Pages can host a static project website, documentation or a chat interface, but **it cannot run this C++/LibTorch executable**. Pages has no persistent native process, model memory or GPU access.
+The web/ directory contains an installable, offline-first PWA. It runs inference in the browser on the device; it does not call a cloud inference API. The current browser backend is a portable JavaScript CPU implementation of the NEXUS model (SSM, causal attention and top-k experts). It does not yet use WebGPU, so larger models or long generations may be slow on an iPad. Browser memory and local-storage quotas also vary by device.
 
-Recommended architecture:
+### Cloud train, download, install
 
-1. Keep the NEXUS code, docs and optional static UI in this GitHub repository.
-2. Run the compiled NEXUS inference process on a machine you control or a GPU/CPU server.
-3. Put a small authenticated HTTP API in front of that process (for example, a C++ HTTP service or a Python FastAPI wrapper that loads the model once).
-4. Deploy the static chat UI to GitHub Pages and configure it to call the API URL. Enable HTTPS, restrict allowed origins, add rate limits and never expose server credentials in browser code.
+1. Merge PR #1 after its CI checks pass. This puts the exporter and Pages workflow on the default branch, where GitHub Actions can run them.
+2. Enable GitHub Pages for this repository with Settings → Pages → Build and deployment → GitHub Actions.
+3. Run Actions → Train NEXUS on WikiText-103 → Run workflow. The workflow trains the model and uploads the native checkpoint, browser-exported files and metrics as an artifact.
+4. Download and extract the workflow artifact. Keep web-model/model.json, web-model/model.bin and web-model/tokenizer.bpe together.
+5. Open the published HTTPS Pages URL in Safari on iPad. Use Share → Add to Home Screen to install the PWA.
+6. Open NEXUS, choose all three model files together, and import them. The app stores them in IndexedDB on that device. Once the app and model have both been cached, inference can run offline.
+7. Enter a prompt and select Generate offline. The prompt and generated text remain in the browser; this PWA has no inference server.
 
-A model checkpoint is not a web page asset. Do not commit the WikiText corpus or multi-megabyte/large checkpoint files to the Pages branch. The repository does not yet include the HTTP inference server or browser chat client, so Pages deployment is a later integration step—not something that is live just by enabling Pages.
+To build the browser export locally after a native training run:
+
+```bash
+./build/nexus_export_web checkpoints/nexus-wikitext103.pt checkpoints/wikitext103.bpe web-model
+```
+
+The native LibTorch .pt checkpoint cannot be loaded directly by Safari. The exporter writes a browser manifest and contiguous float32 tensor file, plus the matching tokenizer. Keep the exported files from the same training run together.
+
+### Browser runtime limits
+
+- The PWA requires HTTPS (GitHub Pages provides this) or localhost for service workers and offline caching.
+- The initial runtime is CPU-only JavaScript. WebGPU acceleration and model quantisation are not implemented yet.
+- iPadOS Safari capabilities and available memory depend on the iPad model and OS version. This implementation does not claim WebGPU support or guarantee that every model size will fit.
+- The browser stores model data in IndexedDB. Clearing website data or removing the app's website storage deletes the local model.
+- The PWA is an inference client, not a training environment. Training remains in the cloud workflow.
+- WikiText-103 and a short first run do not produce a capable instruction-following assistant. The project remains a research prototype, not a validated general-purpose assistant.
 
 ## Benchmarks and limitations
 
