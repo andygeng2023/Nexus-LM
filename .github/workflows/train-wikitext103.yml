@@ -1,6 +1,9 @@
 name: Train NEXUS on WikiText-103
 
 on:
+  push:
+    paths:
+      - ".nexus-training-trigger"
   workflow_dispatch:
     inputs:
       steps:
