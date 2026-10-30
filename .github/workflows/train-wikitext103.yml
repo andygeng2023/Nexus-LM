@@ -85,7 +85,9 @@ jobs:
       - name: Evaluate held-out test split
         run: |
           ./build/nexus evaluate checkpoints/nexus-wikitext103.pt checkpoints/wikitext103.bpe data/wikitext-103/test.txt 256 2>&1 | tee checkpoints/evaluation.log
-      - name: Upload checkpoint, tokenizer and metrics
+      - name: Export browser-compatible model
+        run: ./build/nexus_export_web checkpoints/nexus-wikitext103.pt checkpoints/wikitext103.bpe web-model
+      - name: Upload checkpoint, tokenizer, browser model and metrics
         uses: actions/upload-artifact@v4
         with:
           name: nexus-wikitext103-checkpoint
@@ -94,6 +96,9 @@ jobs:
             checkpoints/wikitext103.bpe
             checkpoints/training.log
             checkpoints/evaluation.log
+            web-model/model.json
+            web-model/model.bin
+            web-model/tokenizer.bpe
             data/wikitext-103/DATASET-ATTRIBUTION.txt
           if-no-files-found: error
           retention-days: 30
