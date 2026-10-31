@@ -122,6 +122,10 @@ int evaluate(const std::string& checkpoint, const std::string& tokenizer_path,
 }
 
 int main(int argc, char** argv) {
+    // GitHub Actions pipes stdout through tee; flush each progress line so a
+    // slow CPU training step remains observable instead of appearing stalled.
+    std::cout << std::unitbuf;
+    std::cerr << std::unitbuf;
     try {
         if (argc < 2) { usage(); return 0; }
         const std::string command = argv[1];
