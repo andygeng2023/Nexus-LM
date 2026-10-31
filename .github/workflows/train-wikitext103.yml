@@ -4,22 +4,22 @@ on:
   workflow_dispatch:
     inputs:
       steps:
-        description: Training steps (2000 is a first experiment; 10000 maximum)
+        description: Training steps (250 is a quick CPU smoke test; 10000 maximum)
         required: true
-        default: "2000"
+        default: "250"
         type: string
       sequence_length:
-        description: Context length per training example
+        description: Context length per training example (shorter contexts train faster)
         required: true
-        default: "256"
+        default: "128"
         type: choice
         options:
           - "128"
           - "256"
       batch_size:
-        description: Batch size
+        description: Batch size (larger batches increase CPU cost)
         required: true
-        default: "4"
+        default: "1"
         type: choice
         options:
           - "1"
@@ -76,7 +76,10 @@ jobs:
         env:
           STEPS: ${{ inputs.steps || '2000' }}
           SEQUENCE_LENGTH: ${{ inputs.sequence_length || '256' }}
-          BATCH_SIZE: ${{ inputs.batch_size || '4' }}
+          BATCH_SIZE: ${{ inputs.batch_size || '1' }}
+          OMP_NUM_THREADS: "2"
+          MKL_NUM_THREADS: "2"
+          OPENBLAS_NUM_THREADS: "1"
         run: |
           if ! [[ "$STEPS" =~ ^[0-9]+$ ]] || (( STEPS < 1 || STEPS > 10000 )); then
             echo "STEPS must be between 1 and 10000" >&2
